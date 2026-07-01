@@ -1,0 +1,22 @@
+#!/bin/sh
+# Read pane content BEFORE opening overlay (overlay steals focus).
+set -eu
+herdr="${HERDR_BIN_PATH:-herdr}"
+
+# Get the focused pane ID now, before overlay opens
+source_pane_id="$("$herdr" pane current 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['result']['pane']['pane_id'])" 2>/dev/null || true)"
+if [ -z "$source_pane_id" ]; then
+  echo "herdr-fingers: could not determine source pane" >&2
+  exit 1
+fi
+
+# Read visible content now, before overlay steals focus
+# Use a well-known path so the Python script can find it
+tmpfile="/tmp/herdr-fingers-content"
+"$herdr" pane read "$source_pane_id" --source visible > "$tmpfile" 2>/dev/null || true
+
+# Open overlay — Python script will read from $tmpfile
+exec "$herdr" plugin pane open \
+  --plugin herdr-fingers \
+  --entrypoint finger-picker \
+  --placement overlay

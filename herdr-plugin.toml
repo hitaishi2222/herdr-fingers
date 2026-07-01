@@ -1,0 +1,29 @@
+# herdr-fingers — extract file paths, URLs, IPs, UUIDs, hashes, and other
+# identifiers from the focused pane and pick one with vimium-style letter keys.
+# Inspired by tmux-fingers (https://github.com/Morantron/tmux-fingers).
+#
+# Flow:
+#   alt+f  →  action "finger" runs  →  opens overlay pane "finger-picker"  →  Python script extracts, displays, reads key, copies to clipboard  →  pane closes.
+
+id = "herdr-fingers"
+name = "Fingers"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+description = "Extract file paths, URLs, IPs, UUIDs, hashes, and other identifiers from the focused pane and pick one with vimium-style letter keys."
+platforms = ["linux", "macos"]
+
+# finger — the action herdr runs from the alt+f keybinding. It opens
+# the overlay pane that runs the extraction script.
+[[actions]]
+id = "finger"
+title = "Fingers"
+command = ["./bin/herdr-fingers"]
+
+# finger-picker — the overlay pane that runs the extraction script.
+# Herdr zooms it over the active pane; when the script exits, herdr restores
+# focus and closes the pane.
+[[panes]]
+id = "finger-picker"
+title = "Fingers"
+placement = "overlay"
+command = ["/usr/bin/env", "python3", "./herdr_fingers.py"]

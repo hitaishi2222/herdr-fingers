@@ -1,0 +1,10 @@
+[project]
+name = "herdr-fingers"
+version = "0.1.0"
+description = "Add your description here"
+authors = [ { name = "Dr. Hitaishi V", email = "hitaishi2222@gmail.com" }, ]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "rich>=15.0.0",
+]

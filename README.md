@@ -34,6 +34,13 @@ Press `Esc` to cancel.
 ## Installation
 
 ```bash
+herdr plugin install hitaishi2222/herdr-fingers
+```
+
+for development:
+
+```bash
+git clone https://https://github.com/hitaishi2222/herdr-fingers
 cd herdr-fingers
 herdr plugin link .
 ```

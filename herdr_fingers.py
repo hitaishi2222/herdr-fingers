@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import tty
 import termios
+import tomllib
 from pathlib import Path
 from rich.console import Console
 from rich.text import Text
@@ -32,6 +33,73 @@ from rich.text import Text
 # ---------------------------------------------------------------------------
 
 MAX_ITEMS = 676  # 26^2 — max items we can assign 2-letter keys to
+
+# Engine priority order for auto-detection.
+ENGINE_PRIORITY = ["inquirerpy", "fzf"]
+
+# Config file location.
+CONFIG_DIR = Path.home() / ".config" / "herdr" / "plugins" / "config" / "herdr-fingers"
+CONFIG_FILE = CONFIG_DIR / "config.toml"
+
+
+def load_config() -> dict:
+    """Load user config from ~/.config/herdr/plugins/config/herdr-fingers/config.toml.
+
+    Returns a dict with at least {"search_engine": <str>}. Defaults to empty
+    dict (no config file) — caller handles auto-detection.
+    """
+    if not CONFIG_FILE.is_file():
+        return {}
+    with open(CONFIG_FILE, "rb") as f:
+        return tomllib.load(f)
+
+
+def detect_engine() -> str | None:
+    """Auto-detect the best available search engine.
+
+    Returns the engine name string, or None if nothing is available.
+    Checks in order: InquirerPy → fzf.
+    """
+    # InquirerPy: try import (lazy, no install needed beyond pip).
+    try:
+        import InquirerPy  # noqa: F401
+        return "inquirerpy"
+    except ImportError:
+        pass
+
+    # fzf: check binary.
+    if shutil.which("fzf"):
+        return "fzf"
+
+    return None
+
+
+def resolve_engine(user_engine: str | None) -> str:
+    """Resolve which engine to use.
+
+    1. User config value (if valid).
+    2. Auto-detect.
+    3. None → caller should error.
+    """
+    valid_engines = {"inquirerpy", "fzf"}
+
+    if user_engine and user_engine in valid_engines:
+        return user_engine
+
+    detected = detect_engine()
+    if detected:
+        return detected
+
+    return ""  # signal: nothing available
+
+
+def get_install_instructions(engine: str) -> str:
+    """Return install instructions for a missing engine."""
+    if engine == "inquirerpy":
+        return "pip install InquirerPy"
+    elif engine == "fzf":
+        return "apt install fzf  (or your OS package manager)"
+    return "install one of: InquirerPy or fzf"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -294,6 +362,125 @@ def format_display(items_with_keys: list[tuple[str, str, int, str]]) -> list[Tex
 
 
 # ---------------------------------------------------------------------------
+# Picker engines
+# ---------------------------------------------------------------------------
+
+def _build_picker_lines(items_with_keys: list[tuple[str, str, int, str]]) -> list[str]:
+    """Build plain-text lines for external pickers (fzf).
+
+    Format: one line per item. Items are already sorted by type from extraction,
+    so they appear grouped without headers.
+    """
+    lines: list[str] = []
+    for _, value, _, key in items_with_keys:
+        display_value = value if len(value) <= 80 else value[:77] + "..."
+        lines.append(f"{key}: {display_value}")
+    return lines
+
+
+def _build_inquirerpy_choices(
+    items_with_keys: list[tuple[str, str, int, str]],
+) -> list[dict]:
+    """Build InquirerPy choice dicts.
+
+    Returns list of dicts: {"name": "key: value", "value": "value"}.
+    Items are already grouped by type from extraction order — no headers needed.
+    """
+    choices: list[dict] = []
+    for _, value, _, key in items_with_keys:
+        display_value = value if len(value) <= 60 else value[:57] + "..."
+        choices.append({
+            "name": f"{key}: {display_value}",
+            "value": value,
+        })
+    return choices
+
+
+def pick_with_inquirerpy(items_with_keys: list[tuple[str, str, int, str]]) -> str | None:
+    """Show findings in an InquirerPy fuzzy picker.
+
+    Returns the selected value, or None if cancelled.
+    """
+    # Lazy import — only needed when this engine is selected.
+    from InquirerPy import inquirer
+
+    if not items_with_keys:
+        return None
+
+    choices = _build_inquirerpy_choices(items_with_keys)
+
+    try:
+        result = inquirer.fuzzy(
+            message="Select a finding:",
+            choices=choices,
+            multiselect=False,
+            cycle=True,
+            keybindings={
+                "interrupt": [{"key": "c-c"}, {"key": "escape"}],
+            },
+        ).execute()
+    except KeyboardInterrupt:
+        return None
+
+    return result
+
+
+def pick_with_fzf(items_with_keys: list[tuple[str, str, int, str]], extra_args: list[str] | None = None) -> str | None:
+    """Show findings in fzf.
+
+    Returns the selected value (without the key prefix), or None if cancelled.
+    """
+    lines = _build_picker_lines(items_with_keys)
+    if not lines:
+        return None
+
+    # Default args: reverse layout (prompt top, results below, starts at top), tac, prompt.
+    base_args = ["fzf", "--layout=reverse", "--tac", "--prompt", "Find: ", "--pointer", ">", "--color", "header:italic"]
+    args = base_args + (extra_args or [])
+
+    proc = subprocess.run(args, input="\n".join(lines), capture_output=True, text=True)
+
+    if proc.returncode > 1:  # fzf exits 0 on select, 130 on Ctrl-C, 1 on empty
+        return None
+
+    selected = proc.stdout.strip()
+    if not selected:
+        return None
+
+    # Parse "key: value" → return just the value.
+    if ": " in selected:
+        return selected.split(": ", 1)[1]
+    return selected
+
+
+def pick_with_engine(
+    items_with_keys: list[tuple[str, str, int, str]],
+    engine: str,
+    extra_args: list[str] | None = None,
+) -> str | None:
+    """Dispatch to the selected engine's picker.
+
+    Args:
+        items_with_keys: list of (type, value, pos, key) tuples.
+        engine: one of 'inquirerpy', 'fzf'.
+        extra_args: additional CLI args for fzf (ignored for inquirerpy).
+
+    Returns:
+        The selected value string, or None if cancelled.
+    """
+    dispatch = {
+        "inquirerpy": pick_with_inquirerpy,
+        "fzf": pick_with_fzf,
+    }
+    picker = dispatch.get(engine)
+    if not picker:
+        err(f"unknown search engine: {engine}")
+    if engine == "fzf":
+        return picker(items_with_keys, extra_args)
+    return picker(items_with_keys)
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -350,96 +537,108 @@ def main():
             print("No items found in pane.")
             wait_for_key("Press any key to close...")
 
-        # 4. Assign keys
+        # 4. Assign keys (needed for both picker and fallback)
         items_with_keys = assign_keys(items)
 
-        # 5. Display
-        display_lines = format_display(items_with_keys)
-        console = Console()
-        for line in display_lines:
-            console.print(line)
+        # 5. Choose picker or fall back to letter keys.
+        user_config = load_config()
+        user_engine = user_config.get("search_engine")
+        engine = resolve_engine(user_engine)
 
-        # 6. Read keystroke
-        print("\nWaiting for key...", file=sys.stderr)
+        # Read extra args for fzf from config.
+        extra_args: list[str] | None = None
+        if engine == "fzf":
+            extra_args = user_config.get("fzf_args")
 
-        # Save and disable echo
-        old_stty = None
-        key = ""
-        try:
-            # Try to save and disable echo via stty
+        value: str | None = None
+
+        if engine:
+            # Use the selected fuzzy-search engine.
+            value = pick_with_engine(items_with_keys, engine, extra_args)
+        else:
+            # No engine available — fall back to letter-key display (backward compat).
+            print(
+                "\nNo search engine found. Install one of:\n"
+                "  InquirerPy: pip install InquirerPy\n"
+                "  fzf:        apt install fzf\n"
+                "\nFalling back to letter-key picker...\n",
+                file=sys.stderr,
+            )
+            display_lines = format_display(items_with_keys)
+            console = Console()
+            for line in display_lines:
+                console.print(line)
+
+            # Read keystroke (existing letter-key logic)
+            print("\nWaiting for key...", file=sys.stderr)
+            old_stty = None
+            key = ""
             try:
-                stty_result = subprocess.run(
-                    ["stty", "-g"],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-                # Strip newlines from stty output
-                old_stty = stty_result.stdout.strip().replace("\n", "")
-                subprocess.run(["stty", "-echo"], check=True)
-            except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
-                # stty not available or failed — continue without echo control
-                old_stty = None
-
-            # Read single keystroke
-            if sys.stdin.isatty():
                 try:
-                    old_attrs = termios.tcgetattr(sys.stdin.fileno())
+                    stty_result = subprocess.run(
+                        ["stty", "-g"],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
+                    old_stty = stty_result.stdout.strip().replace("\n", "")
+                    subprocess.run(["stty", "-echo"], check=True)
+                except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
+                    old_stty = None
+
+                if sys.stdin.isatty():
                     try:
-                        tty.setcbreak(sys.stdin.fileno())
-                        key = sys.stdin.read(1)
-                    finally:
-                        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old_attrs)
-                except (termios.error, IOError, OSError):
-                    # Fallback: try /dev/tty
+                        old_attrs = termios.tcgetattr(sys.stdin.fileno())
+                        try:
+                            tty.setcbreak(sys.stdin.fileno())
+                            key = sys.stdin.read(1)
+                        finally:
+                            termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old_attrs)
+                    except (termios.error, IOError, OSError):
+                        try:
+                            with open("/dev/tty", "r") as tty_file:
+                                key = tty_file.read(1)
+                        except (IOError, OSError):
+                            pass
+                else:
                     try:
                         with open("/dev/tty", "r") as tty_file:
                             key = tty_file.read(1)
                     except (IOError, OSError):
                         pass
-            else:
-                # No TTY — try /dev/tty
-                try:
-                    with open("/dev/tty", "r") as tty_file:
-                        key = tty_file.read(1)
-                except (IOError, OSError):
-                    pass
-        except KeyboardInterrupt:
-            key = "\x1b"  # Esc
-        finally:
-            # Restore echo if we changed it
-            if old_stty:
-                try:
-                    subprocess.run(["stty", old_stty], check=True)
-                except subprocess.CalledProcessError:
-                    pass
+            except KeyboardInterrupt:
+                key = "\x1b"
+            finally:
+                if old_stty:
+                    try:
+                        subprocess.run(["stty", old_stty], check=True)
+                    except subprocess.CalledProcessError:
+                        pass
 
-        if not key or key == "\x1b":
-            # Esc or no key — cancel
+            if not key or key == "\x1b":
+                print("Cancelled.", file=sys.stderr)
+                if old_stty:
+                    try:
+                        subprocess.run(["stty", old_stty], check=False)
+                    except Exception:
+                        pass
+                sys.exit(0)
+
+            # Case-insensitive key lookup
+            key_lower = key.lower()
+            for item in items_with_keys:
+                if item[3].lower() == key_lower:
+                    value = item[1]
+                    break
+
+            if not value:
+                print(f"Unknown key: {key}", file=sys.stderr)
+                wait_for_key("Press any key to close...")
+
+        if value is None:
+            # Picker returned None (cancelled / empty).
             print("Cancelled.", file=sys.stderr)
-            # Restore terminal and exit
-            if old_stty:
-                try:
-                    subprocess.run(["stty", old_stty], check=False)
-                except Exception:
-                    pass
             sys.exit(0)
-
-        # Case-insensitive key lookup
-        key_lower = key.lower()
-
-        # 7. Find selected item
-        selected = None
-        for item in items_with_keys:
-            if item[3].lower() == key_lower:
-                selected = item
-                break
-
-        if not selected:
-            print(f"Unknown key: {key}")
-            wait_for_key("Press any key to close...")
-
-        value = selected[1]
 
         # 8. Copy to clipboard
         clip_tool = detect_clipboard_tool()

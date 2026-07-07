@@ -1,0 +1,14 @@
+# herdr-fingers config
+# Copy this file to ~/.config/herdr/plugins/config/herdr-fingers/config.toml
+# and edit as needed.
+
+# Search engine: "inquirerpy", "fzf", or "skim"
+# Leave unset for auto-detect (InquirerPy → fzf → skim).
+# search_engine = "inquirerpy"
+
+# Extra CLI args for fzf (array of strings).
+# These are appended after our defaults. Omit our defaults entirely by
+# providing a non-empty list.
+# fzf_args = ["--multi", "--preview", "echo {}"]
+
+

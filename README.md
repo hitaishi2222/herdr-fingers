@@ -10,11 +10,28 @@ Inspired by [tmux-fingers](https://github.com/Morantron/tmux-fingers).
 
 1. Press `alt+f` in any Herdr pane.
 2. The plugin scans the **visible content** of the focused pane for 11 pattern types.
-3. Each match gets a letter key (a–z, aa–az, etc.) and is displayed in a vimium-style overlay.
-4. Press the corresponding key — the value is copied to your clipboard.
+3. Findings are shown in a fuzzy-search picker (InquirerPy or fzf).
+4. Type to filter, press Enter to select — the value is copied to your clipboard.
 5. The overlay closes automatically.
 
 Press `Esc` to cancel.
+
+### Search engine
+
+Configure in `~/.config/herdr/plugins/config/herdr-fingers/config.toml`:
+
+```toml
+# Choose: "inquirerpy" or "fzf"
+# Default: auto-detect (InquirerPy → fzf)
+search_engine = "inquirerpy"
+
+# Extra CLI args for fzf (array of strings).
+# Appended after our defaults. Provide a non-empty list to omit defaults.
+# fzf_args = ["--multi", "--preview", "echo {}"]
+```
+
+If no engine is configured, the plugin auto-detects the best available one.
+If none is found, it falls back to the letter-key picker and prints install instructions.
 
 ## Pattern types
 
@@ -65,12 +82,13 @@ description = "Fingers"
 ## Requirements
 
 - Herdr ≥ 0.7.0
-- Python 3.8+ (stdlib only — no pip packages needed beyond `rich`)
+- Python 3.12+
+- One of: **InquirerPy** (`pip install InquirerPy`) or **fzf** (for fuzzy search)
 - One of: `wl-copy`, `xclip`, `xsel`, or `pbcopy` (for clipboard access)
 
 ## Limits
 
-- Max **676 items** (26 single-letter + 650 two-letter keys)
+- Max **676 items** (InquirerPy / fzf handle larger lists gracefully)
 - Items longer than 60 chars are truncated in the display (full value is still copied)
 - Only extracts from the **currently focused pane's visible content**
 

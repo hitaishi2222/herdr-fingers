@@ -11,4 +11,7 @@
 # providing a non-empty list.
 # fzf_args = ["--multi", "--preview", "echo {}"]
 
+# Command used by the "herdr-fingers.open" action. The selected value is
+# appended as the final argument.
+# open_command = "~/.config/nvim/bin/open-path-in-nvim"
 

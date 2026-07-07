@@ -19,6 +19,11 @@ id = "finger"
 title = "Fingers"
 command = ["./bin/herdr-fingers"]
 
+[[actions]]
+id = "open"
+title = "Fingers: Open"
+command = ["./bin/herdr-fingers", "open"]
+
 # finger-picker — the overlay pane that runs the extraction script.
 # Herdr zooms it over the active pane; when the script exits, herdr restores
 # focus and closes the pane.

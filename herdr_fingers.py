@@ -171,6 +171,13 @@ PATTERNS = [
         r'~/[\w./-]{2,}|/(boot|dev|etc|home|mnt|opt|proc|root|run|srv|sys|tmp|usr)[\w./-]*',
     ), 50),
 
+    ("color", re.compile(
+        r'#(?:[0-9a-fA-F]{3}){1,2}\b|'
+        r'#(?:[0-9a-fA-F]{4}){1,2}\b|'
+        r'rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(?:,\s*[\d.]+\s*)?\)|'
+        r'hsla?\(\s*\d{1,3}\s*,\s*[\d.]+%\s*,\s*[\d.]+%\s*(?:,\s*[\d.]+\s*)?\)'
+    ), 45),
+
     ("hex", re.compile(
         r'\b0x[0-9a-fA-F]{2,}\b'
     ), 40),

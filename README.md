@@ -42,6 +42,7 @@ If none is found, it falls back to the letter-key picker and prints install inst
 | `sha`               | `8b1a9953c4611299a820df69698463c3ca01599d`     |
 | `url`               | `https://example.com/path`                     |
 | `path`              | `/home/user/documents/file.txt`, `/etc/config` |
+| `color`             | `#FF5733`                                      |
 | `hex`               | `0xDEADBEEF`                                   |
 | `kubernetes`        | `my-app.default.svc.cluster.local`             |
 | `git-status`        | `M src/main.py` (from `git status`)            |

@@ -2,6 +2,15 @@
 # Read pane content BEFORE opening overlay (overlay steals focus).
 set -eu
 herdr="${HERDR_BIN_PATH:-herdr}"
+action="${1:-copy}"
+
+case "$action" in
+  copy|open) ;;
+  *)
+    echo "herdr-fingers: unknown action: $action" >&2
+    exit 1
+    ;;
+esac
 
 # Get the focused pane ID now, before overlay opens
 source_pane_id="$("$herdr" pane current 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['result']['pane']['pane_id'])" 2>/dev/null || true)"
@@ -11,9 +20,11 @@ if [ -z "$source_pane_id" ]; then
 fi
 
 # Read visible content now, before overlay steals focus
-# Use a well-known path so the Python script can find it
+# Use well-known paths so the Python script can find them
 tmpfile="/tmp/herdr-fingers-content"
+actionfile="/tmp/herdr-fingers-action"
 "$herdr" pane read "$source_pane_id" --source visible > "$tmpfile" 2>/dev/null || true
+printf '%s\n' "$action" > "$actionfile"
 
 # Open overlay — Python script will read from $tmpfile
 exec "$herdr" plugin pane open \

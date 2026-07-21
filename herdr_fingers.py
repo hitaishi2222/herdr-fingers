@@ -19,6 +19,7 @@ import os
 import re
 import sys
 import json
+import shlex
 import shutil
 import subprocess
 import tty
@@ -40,6 +41,7 @@ ENGINE_PRIORITY = ["inquirerpy", "fzf"]
 # Config file location.
 CONFIG_DIR = Path.home() / ".config" / "herdr" / "plugins" / "config" / "herdr-fingers"
 CONFIG_FILE = CONFIG_DIR / "config.toml"
+ACTION_FILE = Path("/tmp/herdr-fingers-action")
 
 
 def load_config() -> dict:
@@ -52,6 +54,23 @@ def load_config() -> dict:
         return {}
     with open(CONFIG_FILE, "rb") as f:
         return tomllib.load(f)
+
+
+def load_action() -> str:
+    """Load the requested post-selection action.
+
+    The shell action writes this before opening the picker pane. Missing or
+    invalid values fall back to copy to preserve the historical behavior.
+    """
+    try:
+        action = ACTION_FILE.read_text().strip()
+    except OSError:
+        return "copy"
+
+    if action in {"copy", "open"}:
+        return action
+
+    return "copy"
 
 
 def detect_engine() -> str | None:
@@ -134,6 +153,65 @@ def detect_clipboard_tool():
         if shutil.which(cmd):
             return [cmd, *args]
     return None
+
+
+def resolve_open_command(user_config: dict) -> list[str]:
+    """Return the configured command used by the open action."""
+    raw = os.environ.get("HERDR_FINGERS_OPEN_COMMAND") or user_config.get("open_command")
+    if not raw:
+        err("open action requires open_command in config.toml")
+
+    expanded = os.path.expandvars(os.path.expanduser(str(raw)))
+    try:
+        command = shlex.split(expanded)
+    except ValueError as e:
+        err(f"invalid open_command: {e}")
+
+    if not command:
+        err("open_command cannot be empty")
+
+    return command
+
+
+def open_value(value: str, user_config: dict) -> None:
+    """Open the selected value with the configured command."""
+    command = resolve_open_command(user_config)
+
+    try:
+        subprocess.run(
+            [*command, value],
+            text=True,
+            check=True,
+        )
+        display_value = value if len(value) <= 60 else value[:57] + "..."
+        subprocess.run(
+            ["herdr", "notification", "show", "Opened", "--body", display_value],
+            check=False,
+        )
+    except subprocess.CalledProcessError as e:
+        err(f"open command failed: {e}")
+
+
+def copy_value(value: str) -> None:
+    """Copy the selected value to the clipboard."""
+    clip_tool = detect_clipboard_tool()
+    if not clip_tool:
+        err("no clipboard tool found (need wl-copy, xclip, xsel, or pbcopy)")
+
+    try:
+        subprocess.run(
+            clip_tool,
+            input=value,
+            text=True,
+            check=True,
+        )
+        display_value = value if len(value) <= 60 else value[:57] + "..."
+        subprocess.run(
+            ["herdr", "notification", "show", "Copied", "--body", display_value],
+            check=False,
+        )
+    except subprocess.CalledProcessError as e:
+        err(f"clipboard copy failed: {e.stderr}")
 
 
 # ---------------------------------------------------------------------------
@@ -525,6 +603,8 @@ def wait_for_key(message: str = "Press any key to close..."):
 def main():
     content_path = "/tmp/herdr-fingers-content"
     try:
+        action = load_action()
+
         # Read pane content from well-known path (set by shell script before overlay opens)
         if not os.path.exists(content_path):
             print("No pane content available.")
@@ -647,26 +727,11 @@ def main():
             print("Cancelled.", file=sys.stderr)
             sys.exit(0)
 
-        # 8. Copy to clipboard
-        clip_tool = detect_clipboard_tool()
-        if not clip_tool:
-            err("no clipboard tool found (need wl-copy, xclip, xsel, or pbcopy)")
-
-        try:
-            subprocess.run(
-                clip_tool,
-                input=value,
-                text=True,
-                check=True,
-            )
-            # Show notification
-            display_value = value if len(value) <= 60 else value[:57] + "..."
-            subprocess.run(
-                ["herdr", "notification", "show", "Copied", "--body", display_value],
-                check=False,
-            )
-        except subprocess.CalledProcessError as e:
-            err(f"clipboard copy failed: {e.stderr}")
+        # 8. Handle selected value
+        if action == "open":
+            open_value(value, user_config)
+        else:
+            copy_value(value)
 
     except Exception as e:
         # Catch-all: show error and wait for key before closing
@@ -676,6 +741,10 @@ def main():
         # Clean up temp file
         try:
             os.remove(content_path)
+        except OSError:
+            pass
+        try:
+            ACTION_FILE.unlink()
         except OSError:
             pass
     

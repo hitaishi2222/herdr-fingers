@@ -28,6 +28,10 @@ search_engine = "inquirerpy"
 # Extra CLI args for fzf (array of strings).
 # Appended after our defaults. Provide a non-empty list to omit defaults.
 # fzf_args = ["--multi", "--preview", "echo {}"]
+
+# Command used by the open action. The selected value is appended as the final
+# argument.
+# open_command = "~/.config/nvim/bin/open-path-in-nvim"
 ```
 
 If no engine is configured, the plugin auto-detects the best available one.
@@ -78,6 +82,17 @@ key = "alt+f"
 type = "plugin_action"
 command = "herdr-fingers.finger"
 description = "Fingers"
+```
+
+To open the selected finding with a custom command instead of copying it, bind
+the `herdr-fingers.open` action and configure `open_command`:
+
+```toml
+[[keys.command]]
+key = "alt+shift+f"
+type = "plugin_action"
+command = "herdr-fingers.open"
+description = "Fingers: open"
 ```
 
 ## Requirements

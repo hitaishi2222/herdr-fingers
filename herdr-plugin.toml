@@ -19,11 +19,15 @@ id = "finger"
 title = "Fingers"
 command = ["./bin/herdr-fingers"]
 
-# finger-picker — the overlay pane that runs the extraction script.
-# Herdr zooms it over the active pane; when the script exits, herdr restores
-# focus and closes the pane.
+# finger-picker — the pane that runs the extraction script. It opens as a
+# centred modal with explicit sizing rather than zooming to fill the active
+# pane. Safe to size independently of the source pane: bin/herdr-fingers reads
+# that pane's visible content into /tmp/herdr-fingers-content BEFORE opening
+# this one, so nothing here depends on the overlay's focus behaviour.
 [[panes]]
 id = "finger-picker"
 title = "Fingers"
-placement = "overlay"
+placement = "popup"
+width = "70%"
+height = "70%"
 command = ["/usr/bin/env", "python3", "./herdr_fingers.py"]

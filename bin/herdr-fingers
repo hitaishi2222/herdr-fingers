@@ -15,8 +15,9 @@ fi
 tmpfile="/tmp/herdr-fingers-content"
 "$herdr" pane read "$source_pane_id" --source visible > "$tmpfile" 2>/dev/null || true
 
-# Open overlay — Python script will read from $tmpfile
+# Open the picker pane — Python script will read from $tmpfile.
+# The placement is left to the manifest's [[panes]] entry so it has a single
+# source of truth; passing --placement here would override it.
 exec "$herdr" plugin pane open \
   --plugin herdr-fingers \
-  --entrypoint finger-picker \
-  --placement overlay
+  --entrypoint finger-picker

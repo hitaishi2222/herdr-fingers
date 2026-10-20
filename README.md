@@ -106,4 +106,4 @@ Written by me with some help from AI. Found a bug or have an idea? [Open an issu
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

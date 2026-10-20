@@ -6,6 +6,13 @@ Inspired by [tmux-fingers](https://github.com/Morantron/tmux-fingers).
 
 ![herdr-fingers screenshot](herdr-fingers.png)
 
+<p>
+  <img src="https://github.com/hitaishi2222/herdr-fingers/actions/workflows/ci.yml/badge.svg" alt="CI"/>
+  <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square"/>
+  <img src="https://img.shields.io/badge/python-3.12+-3776AB?style=flat-square&logo=python&logoColor=3776AB"/>
+  <img src="https://img.shields.io/badge/requires-herdr-%E2%89%A5%200.7.0-blue?style=flat-square"/>
+</p>
+
 ## How it works
 
 1. Press `alt+f` in any Herdr pane.
@@ -95,8 +102,8 @@ description = "Fingers"
 
 ## About
 
-Written by me with some help from AI. Found a bug or have an idea? [Open an issue](../../issues).
+Written by me with some help from AI. Found a bug or have an idea? [Open an issue](https://github.com/hitaishi2222/herdr-fingers/issues).
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
